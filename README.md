@@ -1,1 +1,1 @@
-# image-parsers
+# image-parsers (описание внутри)
