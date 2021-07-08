@@ -7,20 +7,26 @@ os.system('chcp 65001')
 
 # Сайт к которому выполняется парсер
 site = 'https://www.istockphoto.com'
-# Путь к папке с изображениями
-download = 'images'
+
 # Поисковый запрос
-search = 'nature'
+search = ''
+# Параметры авторизации
+username = ''
+password = ''
+# Путь к папке с изображениями
+download = ''
 # Путь к файлу номера последней обработанной страницы
-path_page = download + '/tsv/page.txt'
+path_page = download + ''
+# Путь к файлу описаний к изображениям
+path_tsv = download + ''
 
 # Адресная строка для страницы авторизации
 url = site + '/sign-in'
 # Создание сессии и авторизация
 session = requests.session()
 loging = session.post(url, {
-    'new_session[username]': '',
-    'new_session[password]': ''
+    'new_session[username]': username,
+    'new_session[password]': password
 })
 
 
@@ -69,7 +75,7 @@ while parameters['page'] <= last_page_num:
     if response.status_code == 404:
         break
     # Открытие файла для выгрузки описаний
-    tsv_file = open(download + '/tsv/practice.tsv', 'a', encoding='utf-8')
+    tsv_file = open(path_tsv, 'a', encoding='utf-8')
     # Цикл для парсинга страницы
     for parse in soup.find_all('div', class_='FixedAsset-module__galleryFixedAsset___2QSXC'):
         # Поимка ошибки по капче
@@ -89,7 +95,7 @@ while parameters['page'] <= last_page_num:
                 # Выгрузка изображения и описания к нему
                 img_file = open(path, 'wb+')
                 img_file.write(img_data)
-                tsv_file.write('images/' + img_id + '.jpg' + '\t' + title + '\t' + src + '\n')
+                tsv_file.write(download + img_id + '.jpg' + '\t' + title + '\t' + src + '\n')
                 img_file.close()
         except:
             # Ждём, пока капча не отпустит
@@ -99,7 +105,7 @@ while parameters['page'] <= last_page_num:
     time_to_sleep_when_captcha = 5
     tsv_file.close()
     # Запоминаем номер обработанной страницы
-    now_page = open(download + '/tsv/page.txt', 'w')
+    now_page = open(path_page, 'w')
     now_page.write(str(parameters['page']))
     # Изменение параметра "страница" в адресной строке
     parameters['page'] += 1
