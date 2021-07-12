@@ -1,5 +1,5 @@
 import logging
-import urllib3
+# import urllib3
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -16,9 +16,12 @@ class ShutterstockParser:
     loadedPageCount = 0
     imageFolderPath = ""
     loadedImages = {}
+    session = None
 
     def __init__(self, imageFolderPath):
         self.imageFolderPath = imageFolderPath
+        self.session = requests.Session()
+        self.session.headers.update(self.userAgent)
 
     def parseAllPages(self):
         self.__loadImageIds(self.imageFolderPath)
@@ -79,13 +82,17 @@ class ShutterstockParser:
         try:
             url = 'https://www.shutterstock.com/search?image_type=photo&sort=newest&page=%d' % (pageId)
 
-            request = urllib3.PoolManager(10, self.userAgent)
-            response = request.urlopen('GET', url)
-
-            if response.status == 200 and response.data:
-                return response.data
+            # request = urllib3.PoolManager(10, self.userAgent)
+            # response = request.urlopen('GET', url)
+            # if response.status == 200 and response.data:
+            #     return response.data
+            response = self.session.get(url)
+            if response.status_code == 200 and response.content:
+                return response.content
+            logging.error("Page %d not loaded. Response code %s, content length %d", pageId, response.status_code, len(response.content))
             return None
-        except:
+        except Exception as e:
+            logging.exception("Exception while loading page %d", pageId)
             return None
 
     def __loadImage(self, path, imageId):
@@ -165,17 +172,24 @@ class ShutterstockParser:
             if entry.is_file() and entry.name.endswith('.jpg'):
                 imageId, _ = os.path.splitext(entry.name)
                 imageFiles[imageId] = entry.name
+                if len(imageFiles) % 100000 == 0:
+                    logging.info("%d image files processed", len(imageFiles))
+        logging.info("Total of %d image files were found", len(imageFiles))
+        logging.info("Loading descriptions from %s", self.labelsFile)
         with open(self.labelsFile) as f:
             for line in f:
                 p = [x.strip() for x in line.rstrip('\n').split('\t')]
-                imageId, _ = os.path.splitext(p[0].split('/')[1])
+                if len(p) < 1:
+                    logging.warning("Unable to parse line %s", line)
+                    continue
+                imageId, _ = os.path.splitext(os.path.basename(p[0]))
                 if imageId in imageFiles:
                     self.loadedImages[imageId] = imageFiles[imageId]
                     del imageFiles[imageId]
                 else:
                     logging.warning("Description without a source image file %s", p[0])
         for imageId in imageFiles:
-            logger.warning("Image file without description %s", imageFiles[imageId])
+            logging.warning("Image file without description %s", imageFiles[imageId])
         logging.info("Total %d image ids loaded", len(self.loadedImages))
 
 
