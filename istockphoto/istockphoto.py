@@ -62,7 +62,7 @@ else:
 
 # Адресная строка для поискового запроса
 url = site + '/en/search/2/image/'
-parameters = {'phrase': search, 'page': last_page, 'mediatype': 'photography', 'sort': 'newest'}
+parameters = {'phrase': search.strip(), 'page': last_page, 'mediatype': 'photography', 'sort': 'newest'}
 if len(search) < 1:
     del parameters['phrase']
 headers = {
