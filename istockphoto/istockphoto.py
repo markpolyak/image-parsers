@@ -1,10 +1,36 @@
 import logging
 import requests
+# from requests.adapters import HTTPAdapter
+# from requests.packages.urllib3.util.retry import Retry
 import os
 import sys
 from bs4 import BeautifulSoup
 from time import sleep
 from fake_useragent import UserAgent
+
+
+def requests_retry_session(
+    retries=3,
+    backoff_factor=0.3,
+    status_forcelist=(500, 502, 504),
+    session=None,
+):
+    """
+    Build a retry session for requests
+    """
+    session = session or requests.Session()
+    retry = requests.packages.urllib3.util.retry.Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+    )
+    adapter = requests.adapters.HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
 
 
 logging_filename = f"{sys.argv[0]}_{sys.argv[1].replace(' ','_')}.log" if len(sys.argv) > 1 else f"{sys.argv[0]}.log"
@@ -39,12 +65,17 @@ download = sys.argv[2] if len(sys.argv) > 2 else 'images'
 path_tsv = sys.argv[3] if len(sys.argv) > 3 else 'labels.tsv'
 # Путь к файлу номера последней обработанной страницы
 path_page = sys.argv[4] if len(sys.argv) > 4 else 'loaded_pages.txt'
+# start from last page
+start_from_last_page = (sys.argv[5]=='1') if len(sys.argv) > 5 else False
 
-logging.info("Search query: %s. Download folder: %s. Captions file: %s. Loaded pages counter: %s", search, download, path_tsv, path_page)
+logging.info("Search query: %s. Download folder: %s. Captions file: %s. Loaded pages counter: %s. Start from last page: %s", search, download, path_tsv, path_page, start_from_last_page)
 
 # new session object
-session = requests.session()
+# session = requests.session()
+session = requests_retry_session()
 session.headers.update(headers)
+logging.info("User-Agent: %s", session.headers['User-Agent'])
+
 # authorization url
 url = site + '/sign-in'
 # authorize session
@@ -89,11 +120,13 @@ is_not_first = False
 last_page_num = soup.find('span', class_='PaginationRow-module__lastPage___1gtme').text
 last_page_num = int(last_page_num)
 logging.info("Total %d pages are available for download", last_page_num)
+if start_from_last_page:
+    parameters['page'] = last_page_num - last_page
 
 repeat_on_error_counter = 0
 
 # Цикл по обработке страниц
-while parameters['page'] <= last_page_num:
+while (not start_from_last_page and parameters['page'] <= last_page_num) or (start_from_last_page and parameters['page'] > 0):
     logging.info("Parsing page %d out of %d ...", parameters['page'], last_page_num)
     # Обработка первой итерации
     if is_not_first:
@@ -171,4 +204,7 @@ while parameters['page'] <= last_page_num:
     now_page = open(path_page, 'w')
     now_page.write(str(parameters['page']))
     # Изменение параметра "страница" в адресной строке
-    parameters['page'] += 1
+    if start_from_last_page:
+        parameters['page'] -= 1
+    else:
+        parameters['page'] += 1
