@@ -4,6 +4,7 @@ import os
 import sys
 from bs4 import BeautifulSoup
 from time import sleep
+from fake_useragent import UserAgent
 
 
 logging_filename = f"{sys.argv[0]}_{sys.argv[1].replace(' ','_')}.log" if len(sys.argv) > 1 else f"{sys.argv[0]}.log"
@@ -19,6 +20,10 @@ logging.basicConfig(
 
 # os.system('chcp 65001')
 
+headers = {
+    'User-Agent': UserAgent().random
+}
+
 # Сайт к которому выполняется парсер
 site = 'https://www.istockphoto.com'
 
@@ -30,22 +35,23 @@ username = 'markpolyak@smedx.com'
 password = 'asdf1234'
 # Путь к папке с изображениями
 download = sys.argv[2] if len(sys.argv) > 2 else 'images'
-# Путь к файлу номера последней обработанной страницы
-path_page = 'loaded_pages.txt'
 # Путь к файлу описаний к изображениям
-path_tsv = 'labels.tsv'
+path_tsv = sys.argv[3] if len(sys.argv) > 3 else 'labels.tsv'
+# Путь к файлу номера последней обработанной страницы
+path_page = sys.argv[4] if len(sys.argv) > 4 else 'loaded_pages.txt'
 
 logging.info("Search query: %s. Download folder: %s. Captions file: %s. Loaded pages counter: %s", search, download, path_tsv, path_page)
 
-# Адресная строка для страницы авторизации
-url = site + '/sign-in'
-# Создание сессии и авторизация
+# new session object
 session = requests.session()
+session.headers.update(headers)
+# authorization url
+url = site + '/sign-in'
+# authorize session
 response = session.post(url, {
     'new_session[username]': username,
     'new_session[password]': password
 })
-
 if response.status_code != 200:
     logging.critical("Unable to initialize session. Response code %d. Response headers %s. Response text %s", response.status_code, response.headers, response.text)
     sys.exit(1)
@@ -61,18 +67,17 @@ else:
     last_page = 1
 
 # Адресная строка для поискового запроса
-url = site + '/en/search/2/image/'
+url = site + '/en/search/2/image'
 parameters = {'phrase': search.strip(), 'page': last_page, 'mediatype': 'photography', 'sort': 'newest'}
 if len(search) < 1:
     del parameters['phrase']
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
-                  'Chrome/75.0.3770.142 Safari/537.36'
-}
 # Получение страницы в формате Fixed
-response = session.get(url, params=parameters, headers=headers, cookies={
-    'sp=sf=&ci': 't%25252Crf&gsrp=0&sgl=fixed'
-})
+response = session.get(url, params=parameters,
+    cookies={'sp=sf=&ci': 't%25252Crf&gsrp=0&sgl=fixed'}
+)
+if response.status_code != 200:
+    logging.critical("Unable to load page. Response code %d. Response headers %s. Response text %s", response.status_code, response.headers, response.text)
+    sys.exit(1)
 # Преобразование страницы в lxml
 soup = BeautifulSoup(response.text, 'lxml')
 
@@ -92,7 +97,7 @@ while parameters['page'] <= last_page_num:
     logging.info("Parsing page %d out of %d ...", parameters['page'], last_page_num)
     # Обработка первой итерации
     if is_not_first:
-        response = session.get(url, params=parameters)
+        response = session.get(url, params=parameters, cookies={'sp=sf=&ci': 't%25252Crf&gsrp=0&sgl=fixed'})
         soup = BeautifulSoup(response.text, 'lxml')
     else:
         is_not_first = True
