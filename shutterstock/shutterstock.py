@@ -31,6 +31,7 @@ class ShutterstockParser:
         self.startFromLastPage = startFromLastPage
         self.session = requests.Session()
         self.session.headers.update(self.userAgent)
+        logging.info("Image folder: %s; labels file: %s; offset file: %s; go from last page to first: %s", self.imageFolderPath, self.labelsFile, self.offsetFile, self.startFromLastPage)
 
     def parseAllPages(self):
         self.__loadImageIds(self.imageFolderPath, self.labelsFile)
